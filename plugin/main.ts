@@ -100,7 +100,7 @@ class SyncOptionsModal extends Modal {
 		const vaultName = vault.getName();
 		const vaultPath = (vault.adapter as FileSystemAdapter).getBasePath();
 
-		new Notice(`Downloading latest ${vaultName} from Origin...`);
+		new Notice(`Downloading and syncing ${vaultName} from Origin...`);
 
 		try {
 			const { data } = await axios.get(`${BACKEND_URL}/download/${encodeURIComponent(vaultName)}`, {
@@ -109,18 +109,79 @@ class SyncOptionsModal extends Modal {
 
 			if (!data.downloadUrl) throw new Error('No download URL');
 
-			console.log('🔗 Signed download URL:', data.downloadUrl);
-
 			const zipRes = await axios.get(data.downloadUrl, { responseType: 'arraybuffer' });
 
-			const downloadPath = path.join(vaultPath, 'origin-download.zip');
-			await fs.writeFile(downloadPath, Buffer.from(zipRes.data));
+			const tempZipPath = path.join(vaultPath, 'origin-download.zip');
+			const extractPath = path.join(vaultPath, '__origin_tmp_extract__');
 
-			new Notice(`✅ Zip saved as origin-download.zip in your vault folder`);
-			console.log(`Downloaded zip saved to: ${downloadPath}`);
+			// Save the downloaded zip
+			await fs.writeFile(tempZipPath, Buffer.from(zipRes.data));
+
+			// Extract the zip to a temp folder
+			const zip = await JSZip.loadAsync(Buffer.from(zipRes.data));
+			await fs.ensureDir(extractPath);
+
+			const promises: Promise<any>[] = [];
+
+			zip.forEach((relativePath, zipEntry) => {
+				const fullExtractedPath = path.join(extractPath, relativePath);
+				if (zipEntry.dir) {
+					promises.push(fs.ensureDir(fullExtractedPath));
+				} else {
+					promises.push(
+						zipEntry.async('nodebuffer').then(content => {
+							return fs.outputFile(fullExtractedPath, content);
+						})
+					);
+				}
+			});
+
+			await Promise.all(promises);
+
+			// Sync: Remove files not present in zip
+			const walk = async (dir: string): Promise<string[]> => {
+				const subdirs = await fs.readdir(dir);
+				const files = await Promise.all(subdirs.map(async subdir => {
+					const res = path.resolve(dir, subdir);
+					return (await fs.stat(res)).isDirectory() ? walk(res) : res;
+				}));
+				return files.flat();
+			};
+
+			const localFiles = (await walk(vaultPath))
+				.filter(f => !f.includes('__origin_tmp_extract__') && !f.endsWith('.zip'));
+
+			const extractedFiles = await walk(extractPath);
+
+			// Map extracted relative paths for comparison
+			const extractedRelPaths = extractedFiles.map(f => path.relative(extractPath, f));
+			const localRelPaths = localFiles.map(f => path.relative(vaultPath, f));
+
+			// Delete local files not in zip
+			for (const rel of localRelPaths) {
+				if (!extractedRelPaths.includes(rel)) {
+					const toDelete = path.join(vaultPath, rel);
+					await fs.remove(toDelete);
+					console.log(`🗑️ Deleted: ${rel}`);
+				}
+			}
+
+			// Copy extracted files into vault
+			for (const rel of extractedRelPaths) {
+				const fromPath = path.join(extractPath, rel);
+				const toPath = path.join(vaultPath, rel);
+				await fs.ensureDir(path.dirname(toPath));
+				await fs.copy(fromPath, toPath, { overwrite: true });
+				console.log(`📁 Synced: ${rel}`);
+			}
+
+			await fs.remove(extractPath);
+			await fs.remove(tempZipPath);
+
+			new Notice('✅ Sync complete!');
 		} catch (err) {
 			console.error(err);
-			new Notice('❌ Download failed');
+			new Notice('❌ Sync failed');
 		}
 	}
 
@@ -144,8 +205,6 @@ class SyncOptionsModal extends Modal {
 			}
 		}
 	}
-
-
 
 	onClose() {
 		this.contentEl.empty();
