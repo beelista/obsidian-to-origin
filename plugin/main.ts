@@ -1,13 +1,20 @@
-import { Plugin, Notice, Modal, App, ButtonComponent, TFile } from 'obsidian';
+import { Plugin, Notice, Modal, App, ButtonComponent } from 'obsidian';
 import JSZip from 'jszip';
 import axios from 'axios';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import FormData from 'form-data';
 import { FileSystemAdapter } from 'obsidian';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const BACKEND_URL = 'https://obsidian-to-origin.onrender.com';
-const AUTH_TOKEN = 'supersecret123';
+const AUTH_TOKEN = process.env.AUTH_TOKEN;
+
+if (!AUTH_TOKEN) {
+	console.error("❌ AUTH_TOKEN not found in .env file");
+}
 
 export default class MyPlugin extends Plugin {
 	async onload() {
@@ -114,10 +121,8 @@ class SyncOptionsModal extends Modal {
 			const tempZipPath = path.join(vaultPath, 'origin-download.zip');
 			const extractPath = path.join(vaultPath, '__origin_tmp_extract__');
 
-			// Save the downloaded zip
 			await fs.writeFile(tempZipPath, Buffer.from(zipRes.data));
 
-			// Extract the zip to a temp folder
 			const zip = await JSZip.loadAsync(Buffer.from(zipRes.data));
 			await fs.ensureDir(extractPath);
 
@@ -138,7 +143,6 @@ class SyncOptionsModal extends Modal {
 
 			await Promise.all(promises);
 
-			// Sync: Remove files not present in zip
 			const walk = async (dir: string): Promise<string[]> => {
 				const subdirs = await fs.readdir(dir);
 				const files = await Promise.all(subdirs.map(async subdir => {
@@ -153,11 +157,9 @@ class SyncOptionsModal extends Modal {
 
 			const extractedFiles = await walk(extractPath);
 
-			// Map extracted relative paths for comparison
 			const extractedRelPaths = extractedFiles.map(f => path.relative(extractPath, f));
 			const localRelPaths = localFiles.map(f => path.relative(vaultPath, f));
 
-			// Delete local files not in zip
 			for (const rel of localRelPaths) {
 				if (!extractedRelPaths.includes(rel)) {
 					const toDelete = path.join(vaultPath, rel);
@@ -166,7 +168,6 @@ class SyncOptionsModal extends Modal {
 				}
 			}
 
-			// Copy extracted files into vault
 			for (const rel of extractedRelPaths) {
 				const fromPath = path.join(extractPath, rel);
 				const toPath = path.join(vaultPath, rel);
