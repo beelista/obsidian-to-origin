@@ -5,16 +5,10 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import FormData from 'form-data';
 import { FileSystemAdapter } from 'obsidian';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import * as os from 'os';
 
 const BACKEND_URL = 'https://obsidian-to-origin.onrender.com';
-const AUTH_TOKEN = process.env.AUTH_TOKEN;
-
-if (!AUTH_TOKEN) {
-	console.error("❌ AUTH_TOKEN not found in .env file");
-}
+const TOKEN_FILE_NAME = 'super-important-key.json'; // Create your own key file and store it in the root of your vault
 
 export default class MyPlugin extends Plugin {
 	async onload() {
@@ -34,13 +28,14 @@ class SyncOptionsModal extends Modal {
 		super(app);
 	}
 
+	// UI Instantiation
 	onOpen() {
 		const { contentEl, modalEl } = this;
 
 		modalEl.classList.add('sync-modal');
 		contentEl.empty();
 
-		contentEl.createEl('div', { text: 'What would you like to do?', cls: 'sync-modal-title' });
+		contentEl.createEl('div', { text: 'Choose your action', cls: 'sync-modal-title' });
 
 		const buttonContainer = contentEl.createDiv('sync-button-container');
 
@@ -56,19 +51,34 @@ class SyncOptionsModal extends Modal {
 			.setButtonText('Sync with Origin')
 			.setClass('sync-button')
 			.onClick(() => {
-				this.downloadVault();
+				this.syncVault();
 				this.close();
 			});
 	}
 
+	// Get AUTH_TOKEN value from your key file
+	async getAuthToken(vaultPath: string): Promise<string> {
+		const tokenFile = path.join(vaultPath, TOKEN_FILE_NAME);
+		try {
+			const raw = await fs.readFile(tokenFile, 'utf-8');
+			const json = JSON.parse(raw);
+			if (!json.AUTH_TOKEN) throw new Error('Missing AUTH_TOKEN in token file');
+			return json.AUTH_TOKEN;
+		} catch (e) {
+			console.error('Failed to read AUTH_TOKEN:', e);
+			throw new Error('AUTH_TOKEN not found or invalid');
+		}
+	}
+
+	// Upload vault content to the Supabase bucket
 	async uploadVault() {
 		const vault = this.app.vault;
 		const vaultName = vault.getName();
 		const vaultPath = (vault.adapter as FileSystemAdapter).getBasePath();
+		const AUTH_TOKEN = await this.getAuthToken(vaultPath);
 
 		const zip = new JSZip();
-
-		new Notice(`Zipping ${vaultName}...`);
+		new Notice(`Zipping your vault`);
 
 		try {
 			const allEntries = await fs.readdir(vaultPath);
@@ -79,7 +89,7 @@ class SyncOptionsModal extends Modal {
 			const formData = new FormData();
 			formData.append('vault', new Blob([zipBlob]), 'vault.zip');
 
-			new Notice(`Uploading ${vaultName} to Origin...`);
+			new Notice(`Uploading vault to origin`);
 
 			const response = await axios.post(
 				`${BACKEND_URL}/upload?vaultName=${encodeURIComponent(vaultName)}`,
@@ -94,20 +104,22 @@ class SyncOptionsModal extends Modal {
 				}
 			);
 
-			new Notice('✅ Upload complete!');
+			new Notice('Upload complete :)');
 			console.log(response.data);
 		} catch (err) {
 			console.error(err);
-			new Notice('❌ Upload failed');
+			new Notice('Upload failed :(');
 		}
 	}
 
-	async downloadVault() {
+	// Download and sync remote vault to your current vault - After which the downloaded data is deleted
+	async syncVault() {
 		const vault = this.app.vault;
 		const vaultName = vault.getName();
 		const vaultPath = (vault.adapter as FileSystemAdapter).getBasePath();
+		const AUTH_TOKEN = await this.getAuthToken(vaultPath);
 
-		new Notice(`Downloading and syncing ${vaultName} from Origin...`);
+		new Notice(`Downloading and syncing vault data from Origin...`);
 
 		try {
 			const { data } = await axios.get(`${BACKEND_URL}/download/${encodeURIComponent(vaultName)}`, {
@@ -119,7 +131,7 @@ class SyncOptionsModal extends Modal {
 			const zipRes = await axios.get(data.downloadUrl, { responseType: 'arraybuffer' });
 
 			const tempZipPath = path.join(vaultPath, 'origin-download.zip');
-			const extractPath = path.join(vaultPath, '__origin_tmp_extract__');
+			const extractPath = path.join(os.tmpdir(), `__origin_tmp_extract___${vaultName}`);
 
 			await fs.writeFile(tempZipPath, Buffer.from(zipRes.data));
 
@@ -153,10 +165,13 @@ class SyncOptionsModal extends Modal {
 			};
 
 			const localFiles = (await walk(vaultPath))
-				.filter(f => !f.includes('__origin_tmp_extract__') && !f.endsWith('.zip'));
+				.filter(f =>
+					!f.includes('__origin_tmp_extract__') &&
+					!f.endsWith('.zip') &&
+					!f.endsWith(TOKEN_FILE_NAME)
+				);
 
 			const extractedFiles = await walk(extractPath);
-
 			const extractedRelPaths = extractedFiles.map(f => path.relative(extractPath, f));
 			const localRelPaths = localFiles.map(f => path.relative(vaultPath, f));
 
@@ -164,7 +179,7 @@ class SyncOptionsModal extends Modal {
 				if (!extractedRelPaths.includes(rel)) {
 					const toDelete = path.join(vaultPath, rel);
 					await fs.remove(toDelete);
-					console.log(`🗑️ Deleted: ${rel}`);
+					await this.removeEmptyDirsRecursively(path.dirname(toDelete), vaultPath);
 				}
 			}
 
@@ -173,26 +188,40 @@ class SyncOptionsModal extends Modal {
 				const toPath = path.join(vaultPath, rel);
 				await fs.ensureDir(path.dirname(toPath));
 				await fs.copy(fromPath, toPath, { overwrite: true });
-				console.log(`📁 Synced: ${rel}`);
 			}
+			console.log("Synced completely")
 
 			await fs.remove(extractPath);
 			await fs.remove(tempZipPath);
 
-			new Notice('✅ Sync complete!');
+			new Notice('Sync complete!');
 		} catch (err) {
 			console.error(err);
-			new Notice('❌ Sync failed');
+			new Notice('Sync failed');
 		}
 	}
 
+	// BUG: Removes empty folders post sync
+	async removeEmptyDirsRecursively(dir: string, stopAt: string) {
+		if (dir === stopAt) return;
+
+		const files = await fs.readdir(dir).catch(() => []);
+		if (files.length === 0) {
+			await fs.rmdir(dir).catch(() => { });
+			await this.removeEmptyDirsRecursively(path.dirname(dir), stopAt);
+		}
+	}
+
+	// Helper function to queue data for upload
 	async addFilesToZip(zip: JSZip, basePath: string, entries: string[]) {
 		for (const entry of entries) {
+			if (entry === TOKEN_FILE_NAME) continue;
+
 			const fullPath = path.join(basePath, entry);
 			const stat = await fs.stat(fullPath).catch(() => null);
 
 			if (!stat) {
-				console.warn(`⚠️ Skipping missing file: ${fullPath}`);
+				console.warn(`Skipping missing file: ${fullPath}`);
 				continue;
 			}
 
@@ -207,6 +236,7 @@ class SyncOptionsModal extends Modal {
 		}
 	}
 
+	// Please pay me @abhinakka1912@okicici
 	onClose() {
 		this.contentEl.empty();
 	}

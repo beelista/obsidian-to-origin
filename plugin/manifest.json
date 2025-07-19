@@ -1,11 +1,11 @@
 {
-	"id": "sync-plugin",
-	"name": "Sync Plugin",
+	"id": "obsidian-2-origin",
+	"name": "obsidian-2-origin",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Adds a sidebar button that says 'hi, syncing'.",
+	"description": "Saves your vault content to a remote database. Uploaded content can be synced with your current working vault, overwriting the current data'.",
 	"author": "Abhilash Nakka",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"authorUrl": "https://github.com/beelista",
+	"fundingUrl": "https://upilinks.in/payment-link/upi546529692",
 	"isDesktopOnly": false
 }

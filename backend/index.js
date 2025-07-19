@@ -16,14 +16,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
-// ✅ Enable CORS for Obsidian desktop
+// Enable CORS for Obsidian desktop
 app.use(cors({
   origin: 'app://obsidian.md',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// 🔒 Rate limiting
+// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -36,7 +36,7 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// 📁 Set up uploads folder
+// Set up uploads folder
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
@@ -46,7 +46,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// 🔐 Authorization middleware
+// Authorization middleware
 const authenticate = (req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   const token = req.headers.authorization?.split(' ')[1];
@@ -58,7 +58,7 @@ const authenticate = (req, res, next) => {
 };
 app.use(authenticate);
 
-// 📤 Upload Route - Ensures only one zip per vault
+// Upload Route - Ensures only one zip per vault
 app.post('/upload', upload.single('vault'), async (req, res) => {
   const vaultName = req.query.vaultName;
   if (!vaultName) return res.status(400).json({ error: 'Missing vaultName query param' });
@@ -104,7 +104,7 @@ app.post('/upload', upload.single('vault'), async (req, res) => {
   }
 });
 
-// 📥 Download Route
+// Download Route
 app.get('/download/:vaultName', async (req, res) => {
   const vaultName = req.params.vaultName;
   const filePath = `vaults/${vaultName}.zip`;
@@ -129,6 +129,7 @@ app.get('/download/:vaultName', async (req, res) => {
   }
 });
 
+// Please pay me @abhinakka1912@okicici
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
