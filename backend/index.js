@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -15,6 +16,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
+// ✅ Enable CORS for Obsidian desktop
+app.use(cors({
+  origin: 'app://obsidian.md',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 // 🔒 Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -26,6 +34,7 @@ const limiter = rateLimit({
     error: 'Too many requests. Please try again later.'
   }
 });
+app.use(limiter);
 
 // 📁 Set up uploads folder
 const uploadDir = path.join(__dirname, 'uploads');
@@ -47,9 +56,7 @@ const authenticate = (req, res, next) => {
   }
   next();
 };
-
 app.use(authenticate);
-app.use(limiter);
 
 // 📤 Upload Route - Ensures only one zip per vault
 app.post('/upload', upload.single('vault'), async (req, res) => {
