@@ -1,0 +1,11 @@
+{
+	"id": "sync-plugin",
+	"name": "Sync Plugin",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Adds a sidebar button that says 'hi, syncing'.",
+	"author": "Abhilash Nakka",
+	"authorUrl": "https://obsidian.md",
+	"fundingUrl": "https://obsidian.md/pricing",
+	"isDesktopOnly": false
+}

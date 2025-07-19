@@ -1,0 +1,46 @@
+/* Modal wrapper (outer .modal box) */
+.sync-modal {
+	width: fit-content;
+	min-width: 260px;
+	text-align: center;
+	margin: auto;
+	padding: 1.5em;
+	border-radius: 12px;
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+	background-color: var(--background-secondary);
+}
+
+/* Modal title text */
+.sync-modal-title {
+	font-weight: bold;
+	font-size: 1.15em;
+	margin-bottom: 1em;
+	color: var(--text-normal);
+}
+
+/* Button layout container */
+.sync-button-container {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	align-items: center;
+}
+
+/* Uniform button styles */
+.sync-button {
+	width: 200px;
+	padding: 0.5em 1em;
+	border: none;
+	border-radius: 6px;
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	transition: all 0.2s ease;
+	font-size: 0.95em;
+}
+
+/* Hover animation */
+.sync-button:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+	cursor: pointer;
+}
