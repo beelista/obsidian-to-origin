@@ -1,4 +1,4 @@
-# Obsidian to Origin Sync Plugin
+# Obsidian 2 Origin
 
 This is a custom plugin for [Obsidian](https://obsidian.md/) that allows you to upload the entire content of your vault to a remote Supabase DB and later sync it back from the origin - making it useful for remote backups, synchronization, or collaboration workflows.
 
