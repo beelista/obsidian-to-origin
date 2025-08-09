@@ -76,7 +76,7 @@ You need an authentication token to use the plugin.
 
 Once the plugin is installed and enabled:
 
-1. Click on the 🔁 **Sync ribbon icon** in the left toolbar.
+1. Click on the **Sync ribbon icon** in the left toolbar.
 
 2. A modal will open with two options:
 
